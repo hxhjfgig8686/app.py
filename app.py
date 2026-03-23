@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, session, jsonify
-import requests, json, re, os, threading, time
+import cloudscraper, json, re, os, threading, time, requests
 
 app = Flask(__name__)
 app.secret_key = "secret123"
@@ -8,6 +8,9 @@ BASE = "https://www.ivasms.com"
 
 COOKIES = os.getenv("COOKIES")
 TOKEN = os.getenv("TOKEN")
+
+# فك تشفير التوكن
+TOKEN = requests.utils.unquote(TOKEN)
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0",
@@ -45,11 +48,13 @@ def clean(text):
 def fetch_ivasms():
     print("🚀 FETCH STARTED")
 
+    scraper = cloudscraper.create_scraper()
+
     while True:
         try:
             url = BASE + "/portal/sms/received/getsms/number"
 
-            r = requests.post(url, headers=HEADERS, data={
+            r = scraper.post(url, headers=HEADERS, data={
                 "_token": TOKEN,
                 "range": "1",
                 "start": "",
@@ -86,11 +91,10 @@ def fetch_ivasms():
                             db.append(entry)
                             save("database.json", db)
 
-                            print("✅ NEW MESSAGE:")
+                            print("✅ NEW MESSAGE")
                             print("📞", number)
                             print("📩", message)
                             print("🔐", otp)
-                            print("⏱", date)
 
         except Exception as e:
             print("❌ ERROR:", e)
