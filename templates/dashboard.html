@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{background:#0f172a;color:white;font-family:Arial;text-align:center}
+.card{background:#1e293b;margin:10px;padding:15px;border-radius:10px}
+.otp{color:#22c55e;font-size:22px}
+</style>
+</head>
+<body>
+
+<h1>🚀 SMS Dashboard</h1>
+
+{% for i in messages_data %}
+<div class="card">
+<p>📞 {{ i.number }}</p>
+<p>📩 {{ i.msg }}</p>
+<p class="otp">🔐 {{ i.otp }}</p>
+<p>⏱ {{ i.date }}</p>
+</div>
+{% endfor %}
+
+</body>
+</html>
