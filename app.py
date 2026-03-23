@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, session, jsonify
-import requests, json, re, os, uuid, threading, time
+import requests, json, re, os, threading, time
 
 app = Flask(__name__)
 app.secret_key = "secret123"
@@ -12,19 +12,24 @@ TOKEN = os.getenv("TOKEN")
 HEADERS = {
     "User-Agent": "Mozilla/5.0",
     "X-Requested-With": "XMLHttpRequest",
-    "Cookie": COOKIES
+    "Cookie": COOKIES,
+    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+    "Referer": "https://www.ivasms.com/portal/sms/received",
+    "X-CSRF-TOKEN": TOKEN
 }
 
 # ================= DB =================
 
 def load(file):
     try:
-        return json.load(open(file))
+        with open(file, "r") as f:
+            return json.load(f)
     except:
         return []
 
 def save(file, data):
-    json.dump(data, open(file, "w"))
+    with open(file, "w") as f:
+        json.dump(data, f)
 
 # ================= OTP =================
 
@@ -35,9 +40,11 @@ def extract_otp(text):
 def clean(text):
     return re.sub(r'<.*?>', '', text).strip()
 
-# ================= IVASMS FETCH =================
+# ================= FETCH =================
 
 def fetch_ivasms():
+    print("🚀 FETCH STARTED")
+
     while True:
         try:
             url = BASE + "/portal/sms/received/getsms/number"
@@ -49,28 +56,48 @@ def fetch_ivasms():
                 "end": ""
             }, timeout=20)
 
-            text = clean(r.text)
-            otp = extract_otp(text)
+            print("STATUS:", r.status_code)
 
-            if otp:
-                db = load("database.json")
+            html = r.text
 
-                entry = {
-                    "msg": text,
-                    "otp": otp
-                }
+            rows = re.findall(r'<tr.*?>(.*?)</tr>', html, re.DOTALL)
 
-                if entry not in db:
-                    db.append(entry)
-                    save("database.json", db)
-                    print("NEW OTP:", otp)
+            for row in rows:
+                cols = re.findall(r'<td.*?>(.*?)</td>', row, re.DOTALL)
+
+                if len(cols) >= 3:
+                    number = clean(cols[0])
+                    message = clean(cols[1])
+                    date = clean(cols[2])
+
+                    otp = extract_otp(message)
+
+                    if otp:
+                        db = load("database.json")
+
+                        entry = {
+                            "number": number,
+                            "msg": message,
+                            "otp": otp,
+                            "date": date
+                        }
+
+                        if entry not in db:
+                            db.append(entry)
+                            save("database.json", db)
+
+                            print("✅ NEW MESSAGE:")
+                            print("📞", number)
+                            print("📩", message)
+                            print("🔐", otp)
+                            print("⏱", date)
 
         except Exception as e:
-            print("ERROR:", e)
+            print("❌ ERROR:", e)
 
         time.sleep(5)
 
-# ================= START THREAD =================
+# ================= THREAD =================
 
 threading.Thread(target=fetch_ivasms, daemon=True).start()
 
@@ -97,6 +124,7 @@ def dashboard():
         return redirect("/login")
 
     messages = load("database.json")
+
     return render_template("dashboard.html",
         total=len(messages),
         messages_data=messages[::-1]
